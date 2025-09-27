@@ -1,7 +1,8 @@
 import numpy as np
 
-from modules.metrics import *
+from typing import Self
 from modules.utils import z_normalize
+from modules.metrics import ED_distance, DTW_distance, norm_ED_distance
 
 
 default_metrics_params = {'euclidean': {'normalize': True},
@@ -65,10 +66,19 @@ class TimeSeriesKNN:
 
         dist = 0
 
-        # INSERT YOUR CODE
-
+        if self.metric == "euclidean":
+            if self.metric_params.get("normalize", False):
+                dist = norm_ED_distance(x_train, x_test)
+            else:
+                dist = ED_distance(x_train, x_test)
+        elif self.metric == "dtw":
+            if self.metric_params.get("normalize", False):
+                x_train = z_normalize(x_train)
+                x_test = z_normalize(x_test)
+            dist = DTW_distance(x_train, x_test, r=self.metric_params["r"])
+        else:
+            raise ValueError(f"Cant read '{self.metric}'.")
         return dist
-
 
     def _find_neighbors(self, x_test: np.ndarray) -> list[tuple[float, int]]:
         """
@@ -84,9 +94,12 @@ class TimeSeriesKNN:
         """
 
         neighbors = []
-
-        # INSERT YOUR CODE
-
+        all_distances = []
+        for i in range(len(self.X_train)):
+            dist = self._distance(self.X_train[i], x_test)
+            all_distances.append((dist, self.Y_train[i]))
+        all_distances.sort(key=lambda x: x[0])
+        neighbors = all_distances[: self.n_neighbors]
         return neighbors
 
 

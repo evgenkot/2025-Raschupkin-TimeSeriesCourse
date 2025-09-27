@@ -14,12 +14,7 @@ def ED_distance(ts1: np.ndarray, ts2: np.ndarray) -> float:
     -------
     ed_dist: euclidean distance between ts1 and ts2
     """
-    
-    ed_dist = 0
-
-    # INSERT YOUR CODE
-
-    return ed_dist
+    return np.sqrt(np.sum((ts1 - ts2) ** 2))
 
 
 def norm_ED_distance(ts1: np.ndarray, ts2: np.ndarray) -> float:
@@ -35,13 +30,14 @@ def norm_ED_distance(ts1: np.ndarray, ts2: np.ndarray) -> float:
     -------
     norm_ed_dist: normalized Euclidean distance between ts1 and ts2s
     """
-
-    norm_ed_dist = 0
-
-    # INSERT YOUR CODE
-
-    return norm_ed_dist
-
+    n = len(ts1)
+    mu1, sigma1 = np.mean(ts1), np.std(ts1)
+    mu2, sigma2 = np.mean(ts2), np.std(ts2)
+    if sigma1 == 0 or sigma2 == 0:
+        return np.sqrt(2 * n) if sigma1 != sigma2 else 0
+    dot_product = np.dot(ts1, ts2)
+    dist_sq = 2 * n * (1 - (dot_product - n * mu1 * mu2) / (n * sigma1 * sigma2))
+    return np.sqrt(max(0, dist_sq))
 
 def DTW_distance(ts1: np.ndarray, ts2: np.ndarray, r: float = 1) -> float:
     """
@@ -57,9 +53,14 @@ def DTW_distance(ts1: np.ndarray, ts2: np.ndarray, r: float = 1) -> float:
     -------
     dtw_dist: DTW distance between ts1 and ts2
     """
-
-    dtw_dist = 0
-
-    # INSERT YOUR CODE
-
-    return dtw_dist
+    n, m = len(ts1), len(ts2)
+    dtw_matrix = np.full((n + 1, m + 1), np.inf)
+    dtw_matrix[0, 0] = 0
+    for i in range(1, n + 1):
+        for j in range(1, m + 1):
+            cost = (ts1[i - 1] - ts2[j - 1]) ** 2
+            last_min = np.min(
+                [dtw_matrix[i - 1, j], dtw_matrix[i, j - 1], dtw_matrix[i - 1, j - 1]]
+            )
+            dtw_matrix[i, j] = cost + last_min
+    return dtw_matrix[n, m]
