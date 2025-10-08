@@ -147,17 +147,17 @@ class NaiveBestMatchFinder(BestMatchFinder):
         excl_zone = self._calculate_excl_zone(m)
 
         dist_profile = np.ones((N,))*np.inf
-        bsf = np.inf
 
-        bestmatch = {
-            'index' : [],
-            'distance' : []
-        }
-        
-        # INSERT YOUR CODE
-
-        return bestmatch
-
+        if self.is_normalize:
+            query = z_normalize(query)
+        for i in range(N):
+            subsequence = ts_data[i]
+            if self.is_normalize:
+                subsequence = z_normalize(subsequence)
+            dist = DTW_distance(query, subsequence, r=self.r)
+            dist_profile[i] = dist
+        matches = topK_match(dist_profile, excl_zone, self.topK)
+        return {"matches": matches, "dist_profile": dist_profile}
 
 class UCR_DTW(BestMatchFinder):
     """
@@ -219,9 +219,24 @@ class UCR_DTW(BestMatchFinder):
         lb_Keogh: LB_Keogh lower bound
         """
 
-        lb_Keogh = 0
+        m = len(subs1)
+        r_win = int(r * m) if r < 1 else int(r)
 
-        # INSERT YOUR CODE
+        U = np.zeros(m)
+        L = np.zeros(m)
+        for i in range(m):
+            start = max(0, i - r_win)
+            end = min(m, i + r_win + 1)
+            U[i] = np.max(subs1[start:end])
+            L[i] = np.min(subs1[start:end])
+
+        diff_upper = subs2 - U
+        diff_lower = subs2 - L
+
+        sum_u = np.sum(np.power(diff_upper[diff_upper > 0], 2))
+        sum_l = np.sum(np.power(diff_lower[diff_lower < 0], 2))
+
+        lb_Keogh = sum_u + sum_l
 
         return lb_Keogh
 
@@ -269,12 +284,46 @@ class UCR_DTW(BestMatchFinder):
 
         dist_profile = np.ones((N,))*np.inf
         bsf = np.inf
+
+        if self.is_normalize:
+            query_norm = z_normalize(query)
+        else:
+            query_norm = query
+        self.not_pruned_num = 0
+        self.lb_Kim_num = 0
+        self.lb_KeoghCQ_num = 0
+        self.lb_KeoghQC_num = 0
         
-        bestmatch = {
-            'index' : [],
-            'distance' : []
-        }
 
-        # INSERT YOUR CODE
+        top_k_heap = []
 
-        return bestmatch
+        for i in range(N):
+            subsequence = ts_data[i]
+            if self.is_normalize:
+                subsequence_norm = z_normalize(subsequence)
+            else:
+                subsequence_norm = subsequence
+            lb_kim = self._LB_Kim(query_norm, subsequence_norm)
+            if lb_kim >= bsf:
+                self.lb_Kim_num += 1
+                continue
+            lb_keogh_qc = self._LB_Keogh(query_norm, subsequence_norm, self.r)
+            if lb_keogh_qc >= bsf:
+                self.lb_KeoghQC_num += 1
+                continue
+            lb_keogh_cq = self._LB_Keogh(subsequence_norm, query_norm, self.r)
+            if lb_keogh_cq >= bsf:
+                self.lb_KeoghCQ_num += 1
+                continue
+            self.not_pruned_num += 1
+            dist = DTW_distance(query_norm, subsequence_norm, r=self.r)
+            dist_profile[i] = dist
+            if len(top_k_heap) < self.topK:
+                heapq.heappush(top_k_heap, -dist)
+                if len(top_k_heap) == self.topK:
+                    bsf = -top_k_heap[0]
+            elif dist < bsf:
+                heapq.heappushpop(top_k_heap, -dist)
+                bsf = -top_k_heap[0]
+        matches = topK_match(dist_profile, excl_zone, self.topK)
+        return {"matches": matches, "dist_profile": dist_profile}
